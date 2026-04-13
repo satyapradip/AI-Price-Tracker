@@ -1,11 +1,17 @@
 import Image from 'next/image';
-import { Button } from "@/components/ui/button"
-import { LogIn } from 'lucide-react';
 import { Rabbit, Shield, Bell } from 'lucide-react';
+import AddProductForm from "@/components/ui/AddProductForm";
+import AuthButton from "@/components/ui/AuthButton";
+import { createClient } from "@/utils/supabase/server";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
 
-  const user = null;
+export default async function Home() {
+  const supabase = await createClient();
+  
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const products = [];
 
@@ -42,14 +48,7 @@ export default function Home() {
           />
         </div>
         {/*Auth buttons*/}
-        <Button 
-          variant="outline"
-          size="sm"
-          className="bg-orange-500 hover:bg-orange-600 text-white border-none gap-2"
-          >
-            <LogIn className='w-4 h-4' />
-            Sign In
-        </Button>
+        <AuthButton user={user} />
       </div>
     </header>
     {/* Hero Section */}
@@ -66,20 +65,28 @@ export default function Home() {
         </p>
 
         {/* Add product form */}
+        <AddProductForm user={user} />
 
         {/* Features Section */}
         {products.length === 0 && (
           <div className='grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-16'>
             {FEATURES.map(({ icon: Icon, title, description }) => (
-              <div key={title} className='bg-white p-6 rounded-lg shadow-md'>
-                <Icon className='w-12 h-12 text-orange-500 mb-4' />
-                <h3 className='text-xl font-bold text-grey-900 mb-2'>{title}</h3>
-                <p className='text-grey-600'>{description}</p>
+              <div 
+                key={title} 
+                className='bg-white p-6 rounded-xl border border-gray-200'
+              >
+                <div className='w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4 mx-auto'>
+                  <Icon className='w-6 h-6 text-orange-500' />
+                </div>
+                <h3 className='font-semibold text-gray-900 mb-2'>{title}</h3>
+                <p className='text-sm text-gray-600'>{description}</p>
               </div>
             ))}
           </div>
         )}
       </div>
     </section>
+    {/* Products Grid */}
+
   </main>
 }
