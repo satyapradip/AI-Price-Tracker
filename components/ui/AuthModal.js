@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/utils/supabase/client";
 import {
   Dialog,
@@ -12,14 +12,63 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function AuthModal({ isOpen, onClose }) {
+export default function AuthModal({ isOpen, onClose, authError }) {
   const supabase = createClient();
+  const MAGIC_LINK_COOLDOWN_SECONDS = 60;
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [status, setStatus] = useState("");
+  const [preferOtpMode, setPreferOtpMode] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(Date.now());
+
+  const normalizedAuthError = (authError || "").toLowerCase();
+  const shouldRecommendOtpMode =
+    normalizedAuthError.includes("code verifier") ||
+    normalizedAuthError.includes("exchange_code_failed") ||
+    normalizedAuthError.includes("magic link session expired");
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const stored = window.localStorage.getItem("magic_link_cooldown_until");
+    const parsed = Number(stored || "0");
+
+    if (Number.isFinite(parsed) && parsed > Date.now()) {
+      setCooldownUntil(parsed);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (shouldRecommendOtpMode) {
+      setPreferOtpMode(true);
+      setStatus(
+        "Magic link callback failed earlier. OTP mode is enabled, use the code from email to sign in."
+      );
+    }
+  }, [isOpen, shouldRecommendOtpMode]);
+
+  useEffect(() => {
+    if (!cooldownUntil) return;
+
+    const id = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(id);
+  }, [cooldownUntil]);
+
+  const secondsRemaining = useMemo(() => {
+    const remaining = Math.ceil((cooldownUntil - now) / 1000);
+    return Math.max(0, remaining);
+  }, [cooldownUntil, now]);
+
+  const isCooldownActive = secondsRemaining > 0;
 
   const validateEmail = () => {
     if (!email.trim()) {
@@ -51,6 +100,11 @@ export default function AuthModal({ isOpen, onClose }) {
   const handleSendMagicLinkOrOtp = async () => {
     if (!validateEmail()) return;
 
+    if (isCooldownActive) {
+      setStatus(`Please wait ${secondsRemaining}s before requesting another email.`);
+      return;
+    }
+
     try {
       setIsLoading(true);
       setStatus("");
@@ -59,16 +113,38 @@ export default function AuthModal({ isOpen, onClose }) {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: `${origin}/auth/callback`,
+          ...(preferOtpMode ? {} : { emailRedirectTo: `${origin}/auth/callback` }),
         },
       });
 
       if (error) throw error;
 
+      const nextCooldownUntil = Date.now() + MAGIC_LINK_COOLDOWN_SECONDS * 1000;
+      setCooldownUntil(nextCooldownUntil);
+      window.localStorage.setItem(
+        "magic_link_cooldown_until",
+        String(nextCooldownUntil)
+      );
+
       setEmailSent(true);
-      setStatus("Check your inbox for a magic link or one-time code.");
+      if (preferOtpMode) {
+        setStatus(
+          "We sent a login code. Enter the OTP code below to sign in (recommended), instead of using the email link."
+        );
+      } else {
+        setStatus(
+          "Check your inbox for a magic link or one-time code. Open the magic link in this same browser, or enter the OTP code here."
+        );
+      }
     } catch (error) {
-      setStatus(error.message || "Could not send login email.");
+      const message = error?.message || "Could not send login email.";
+      if (message.toLowerCase().includes("rate limit")) {
+        setStatus(
+          "Too many email requests. Wait about a minute and then try again, or use the OTP from your latest email."
+        );
+      } else {
+        setStatus(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -152,6 +228,12 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
 
           <div className="space-y-3">
+            {shouldRecommendOtpMode && (
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                We detected a previous magic-link callback issue. OTP mode is enabled and recommended.
+              </div>
+            )}
+
             <Input
               type="email"
               placeholder="you@example.com"
@@ -163,9 +245,27 @@ export default function AuthModal({ isOpen, onClose }) {
             <Button
               onClick={handleSendMagicLinkOrOtp}
               className="w-full"
+              disabled={isLoading || isVerifying || isCooldownActive}
+            >
+              {isLoading
+                ? "Sending..."
+                : isCooldownActive
+                  ? `Resend in ${secondsRemaining}s`
+                  : preferOtpMode
+                    ? "Send OTP Code"
+                    : "Send Magic Link / OTP"}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full text-xs"
+              onClick={() => setPreferOtpMode((prev) => !prev)}
               disabled={isLoading || isVerifying}
             >
-              {isLoading ? "Sending..." : "Send Magic Link / OTP"}
+              {preferOtpMode
+                ? "Using OTP mode (switch to magic-link mode)"
+                : "Having link issues? Switch to OTP mode"}
             </Button>
 
             {emailSent && (
