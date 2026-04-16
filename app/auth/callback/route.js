@@ -25,15 +25,8 @@ export async function GET(request) {
 
   const supabase = await createClient();
 
-  if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (error) {
-      redirectTo.searchParams.set("auth_error", error.code || "exchange_code_failed");
-      redirectTo.searchParams.set("auth_error_description", error.message);
-      return NextResponse.redirect(redirectTo);
-    }
-  }
-
+  // For email magic links in SSR, token_hash verification is the most reliable
+  // path and does not depend on client-side PKCE verifier storage.
   if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({
       type,
@@ -44,6 +37,29 @@ export async function GET(request) {
       redirectTo.searchParams.set("auth_error_description", error.message);
       return NextResponse.redirect(redirectTo);
     }
+
+    return NextResponse.redirect(redirectTo);
+  }
+
+  if (code) {
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (error) {
+      const message = error.message || "Could not complete sign-in.";
+      const isMissingCodeVerifier = message
+        .toLowerCase()
+        .includes("code verifier not found");
+
+      redirectTo.searchParams.set("auth_error", error.code || "exchange_code_failed");
+      redirectTo.searchParams.set(
+        "auth_error_description",
+        isMissingCodeVerifier
+          ? "Magic link session expired or opened in a different browser. Request a new email and open it in the same browser, or use the OTP code."
+          : message
+      );
+      return NextResponse.redirect(redirectTo);
+    }
+
+    return NextResponse.redirect(redirectTo);
   }
 
   if (accessToken && refreshToken) {
