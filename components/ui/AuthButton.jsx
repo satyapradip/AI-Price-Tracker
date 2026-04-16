@@ -6,7 +6,7 @@ import AuthModal from "./AuthModal";
 import { Button } from "@/components/ui/button";
 import { LogIn, LogOut } from "lucide-react";
 
-export default function AuthButton({ user }) {
+export default function AuthButton({ user, authError }) {
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   if (user) {
@@ -35,6 +35,7 @@ export default function AuthButton({ user }) {
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
+        authError={authError}
       />
     </>
   );

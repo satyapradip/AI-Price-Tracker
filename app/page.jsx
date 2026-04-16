@@ -6,8 +6,12 @@ import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
+export default async function Home({ searchParams }) {
+  const resolvedSearchParams = await searchParams;
   const supabase = await createClient();
+  const authErrorDescription = resolvedSearchParams?.auth_error_description;
+  const authErrorCode = resolvedSearchParams?.auth_error;
+  const authError = authErrorDescription || authErrorCode;
   
   const {
     data: { user },
@@ -48,12 +52,17 @@ export default async function Home() {
           />
         </div>
         {/*Auth buttons*/}
-        <AuthButton user={user} />
+        <AuthButton user={user} authError={authError} />
       </div>
     </header>
     {/* Hero Section */}
     <section className='py-20 px-4'>
       <div className='max-w-7xl mx-auto text-center'>
+        {authError && (
+          <div className='mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
+            Sign-in failed: {authError}
+          </div>
+        )}
         <div className='inline-flex items-center gap-2 bg-orange-100 text-orange-700 px-6 py-2 rounded-full text-sm font-medium mb-6'> 
           Made with ❤️ by Satyapradip
         </div>
