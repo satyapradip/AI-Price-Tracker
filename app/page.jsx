@@ -1,23 +1,18 @@
-import Image from 'next/image';
-import { Rabbit, Shield, Bell, TrendingDown } from 'lucide-react';
-import AddProductForm from "@/components/ui/AddProductForm";
-import AuthButton from "@/components/ui/AuthButton";
 import { createClient } from "@/utils/supabase/server";
+import { getProducts } from "./actions";
+import AddProductForm from "@/components/ui/AddProductForm";
+import ProductCard from "@/components/ui/ProductCard";
+import { TrendingDown, Shield, Bell, Rabbit } from "lucide-react";
+import AuthButton from "@/components/ui/AuthButton";
+import Image from "next/image";
 
-export const dynamic = "force-dynamic";
-
-export default async function Home({ searchParams }) {
-  const resolvedSearchParams = await searchParams;
+export default async function Home() {
   const supabase = await createClient();
-  const authErrorDescription = resolvedSearchParams?.auth_error_description;
-  const authErrorCode = resolvedSearchParams?.auth_error;
-  const authError = authErrorDescription || authErrorCode;
-  
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const products = [];
+  const products = user ? await getProducts() : [];
 
   const FEATURES = [
     {
@@ -39,76 +34,96 @@ export default async function Home({ searchParams }) {
     },
   ];
 
-  return <main className='min-h-screen bg-linear-to-br from-orange-50 via-white'>
-    <header className='bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10'>
-      <div className='max-w-7xl mx-auto px-4 py-4 flex justify-between items-center'>
-        <div className="flex items-center gap-3">
-          <Image 
-            src={"/image.png"} 
-            alt = "Deal drop" 
-            width={200} 
-            height={200}
-            className='h-10 w-auto'
-          />
-        </div>
-        {/*Auth buttons*/}
-        <AuthButton user={user} authError={authError} />
-      </div>
-    </header>
-    {/* Hero Section */}
-    <section className='py-20 px-4'>
-      <div className='max-w-7xl mx-auto text-center'>
-        {authError && (
-          <div className='mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700'>
-            Sign-in failed: {authError}
+  return (
+    <main className="min-h-screen bg-linear-to-br from-orange-50 via-white to-orange-50">
+      {/* Header */}
+      <header className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/image.png"
+              alt="Deal Drop Logo"
+              width={600}
+              height={200}
+              className="h-10 w-auto"
+            />
           </div>
-        )}
-        <div className='inline-flex items-center gap-2 bg-orange-100 text-orange-700 px-6 py-2 rounded-full text-sm font-medium mb-6'> 
-          Made with ❤️ by Satyapradip
+
+          <AuthButton user={user} />
         </div>
-        <h2 className='text-5xl font-bold text-grey-900 mb-4 tracking-tight'>
-          Never Miss a Deal Again
-        </h2>
-        <p className='text-xl text-grey-600 mb-12 max-w-2xl mx-auto'>
-          Track the best deals and discounts across the web with Deal Drop. Get instant alerts when prices drop on your favorite products.
-        </p>
+      </header>
 
-        {/* Add product form */}
-        <AddProductForm user={user} />
+      {/* Hero Section */}
+      <section className="py-20 px-4">
+        <div className="max-w-7xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 bg-orange-100 text-orange-700 px-6 py-2 rounded-full text-sm font-medium mb-6">
+            Made with ❤️ by Roadside Coder
+          </div>
 
-        {/* Features Section */}
-        {products.length === 0 && (
-          <div className='grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-16'>
-            {FEATURES.map(({ icon: Icon, title, description }) => (
-              <div 
-                key={title} 
-                className='bg-white p-6 rounded-xl border border-gray-200'
-              >
-                <div className='w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4 mx-auto'>
-                  <Icon className='w-6 h-6 text-orange-500' />
+          <h2 className="text-5xl font-bold text-gray-900 mb-4 tracking-tight">
+            Never Miss a Price Drop
+          </h2>
+          <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
+            Track prices from any e-commerce site. Get instant alerts when
+            prices drop. Save money effortlessly.
+          </p>
+
+          <AddProductForm user={user} />
+
+          {/* Features */}
+          {products.length === 0 && (
+            <div className="grid md:grid-cols-3 gap-6 max-w-4xl mx-auto mt-16">
+              {FEATURES.map(({ icon: Icon, title, description }) => (
+                <div
+                  key={title}
+                  className="bg-white p-6 rounded-xl border border-gray-200"
+                >
+                  <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mb-4 mx-auto">
+                    <Icon className="w-6 h-6 text-orange-500" />
+                  </div>
+                  <h3 className="font-semibold text-gray-900 mb-2">{title}</h3>
+                  <p className="text-sm text-gray-600">{description}</p>
                 </div>
-                <h3 className='font-semibold text-gray-900 mb-2'>{title}</h3>
-                <p className='text-sm text-gray-600'>{description}</p>
-              </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Products Grid */}
+      {user && products.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 pb-20">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-2xl font-bold text-gray-900">
+              Your Tracked Products
+            </h3>
+            <span className="text-sm text-gray-500">
+              {products.length} {products.length === 1 ? "product" : "products"}
+            </span>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 items-start">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
-        )}
-      </div>
-    </section>
-    {/* Products Grid */}
-  {user && products.length == 0 && (
-    <section className='max-w-2xl mx-auto px-4 pb-20 text-center'>
-      <div className='bg-white rounded-xl border-2 border-dashed border-gray-300 p-12'>
-        <TrendingDown className='w-16 h-16 text-gray-400 mx-auto mb-4'/>
-        <h3 className='text-xl font-semibold text-gray-900 mb-2'>
-          No products being tracked yet.
-        </h3>
-        <p className='text-gray-600'>
-          Start tracking your favorite products to get notified when prices drop!
-        </p>
-      </div>
-    </section>
-  )}
+        </section>
+      )}
 
-  </main>
+      {/* Empty State */}
+      {user && products.length === 0 && (
+        <section className="max-w-2xl mx-auto px-4 pb-20 text-center">
+          <div className="bg-white rounded-xl border-2 border-dashed border-gray-300 p-12">
+            <TrendingDown className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              No products yet
+            </h3>
+            <p className="text-gray-600">
+              Add your first product above to start tracking prices!
+            </p>
+          </div>
+        </section>
+      )}
+    </main>
+  );
 }
