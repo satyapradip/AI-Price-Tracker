@@ -1,6 +1,23 @@
 import { createClient } from "@/utils/supabase/server";
 import { NextResponse } from "next/server";
 
+function getSafeNextPath(nextValue) {
+  if (!nextValue || typeof nextValue !== "string") {
+    return "/";
+  }
+
+  // Allow only same-site relative paths to prevent open redirects.
+  if (!nextValue.startsWith("/")) {
+    return "/";
+  }
+
+  if (nextValue.startsWith("//")) {
+    return "/";
+  }
+
+  return nextValue;
+}
+
 export async function GET(request) {
   const requestUrl = new URL(request.url);
   const { searchParams } = requestUrl;
@@ -9,10 +26,11 @@ export async function GET(request) {
   const callbackErrorDescription = searchParams.get("error_description");
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
+  const token = searchParams.get("token");
   const type = searchParams.get("type");
   const accessToken = searchParams.get("access_token");
   const refreshToken = searchParams.get("refresh_token");
-  const next = searchParams.get("next") || "/";
+  const next = getSafeNextPath(searchParams.get("next"));
   const redirectTo = new URL(next, requestUrl.origin);
 
   if (callbackError || callbackErrorCode) {
@@ -41,6 +59,22 @@ export async function GET(request) {
     return NextResponse.redirect(redirectTo);
   }
 
+  // Some templates/providers include token instead of token_hash.
+  if (token && type) {
+    const { error } = await supabase.auth.verifyOtp({
+      type,
+      token,
+    });
+
+    if (error) {
+      redirectTo.searchParams.set("auth_error", error.code || "verify_otp_failed");
+      redirectTo.searchParams.set("auth_error_description", error.message);
+      return NextResponse.redirect(redirectTo);
+    }
+
+    return NextResponse.redirect(redirectTo);
+  }
+
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
@@ -53,7 +87,7 @@ export async function GET(request) {
       redirectTo.searchParams.set(
         "auth_error_description",
         isMissingCodeVerifier
-          ? "Magic link session expired or opened in a different browser. Request a new email and open it in the same browser, or use the OTP code."
+          ? "Magic link opened in a different browser/app context. Use OTP code, or update Supabase email template to use token_hash links for cross-browser magic-link sign-in."
           : message
       );
       return NextResponse.redirect(redirectTo);
