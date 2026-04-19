@@ -113,7 +113,9 @@ export default function AuthModal({ isOpen, onClose, authError }) {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          ...(preferOtpMode ? {} : { emailRedirectTo: `${origin}/auth/callback` }),
+          ...(preferOtpMode
+            ? {}
+            : { emailRedirectTo: `${origin}/auth/callback?next=/` }),
         },
       });
 
